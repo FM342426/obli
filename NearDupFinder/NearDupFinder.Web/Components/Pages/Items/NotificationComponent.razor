@@ -1,0 +1,32 @@
+﻿<div class="notification-container">
+    @foreach (var notification in notifications)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @notification
+            <button type="button" class="btn-close" @onclick="() => DismissNotification(notification)"></button>
+        </div>
+    }
+</div>
+
+@code {
+    private List<string> notifications = new();
+    
+    public void ShowError(string message)
+    {
+        notifications.Add(message);
+        StateHasChanged();
+        
+        // Auto-remove after 5 seconds
+        Task.Delay(3000).ContinueWith(_ => {
+            InvokeAsync(() => {
+                DismissNotification(message);
+            });
+        });
+    }
+    
+    private void DismissNotification(string message)
+    {
+        notifications.Remove(message);
+        StateHasChanged();
+    }
+}

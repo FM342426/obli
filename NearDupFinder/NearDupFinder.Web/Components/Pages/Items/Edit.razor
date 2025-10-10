@@ -1,0 +1,112 @@
+﻿@page "/items/{Id:int}/edit"
+
+<h1>Editar Item</h1>
+
+@using NearDupFinder.Dominio.Exceptions
+@using NearDupFinder.Dominio.Repositorios
+@inject IItemRepositorio ItemRepository
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+
+<PageTitle>Edit Item</PageTitle>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Editar Item</h5>
+        <NotificationComponent @ref="notificationComponent" />
+    </div>
+    <div class="card-body">
+        <form>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Título</label>
+                        <input type="text" class="form-control" id="title" @bind="currentItem.Titulo" />
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="descripcion"  class="form-label">Descripción</label>
+                        <input type="text" class="form-control" id="descripcion" @bind="currentItem.Descripcion" />
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="marca" class="form-label">Marca</label>
+                        <input type="text" class="form-control" id="marca" @bind="currentItem.Marca" />
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="modelo" class="form-label">Modelo</label>
+                        <input type="text" class="form-control" id="modelo" @bind="currentItem.Modelo"/>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="categoria" class="form-label">Categoría</label>
+                        <input type="text" class="form-control" id="categoria" @bind="currentItem.Categoria" />
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label>Catálogo</label>
+                        <p class="form-control-plaintext">@currentItem.Catalogo?.Titulo</p>
+                    </div>
+                </div>
+            </div>
+    
+            <button type="button" class="btn btn-primary" @onclick="SaveChanges">
+                <span class="oi oi-check me-1"></span>
+                Guardar
+            </button>
+            <a href="/Item" class="btn btn-secondary">
+                <span class="oi oi-x me-1"></span>
+                Cancelar
+            </a>
+        </form>
+    </div>
+</div>
+
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+    
+    private Dominio.Item currentItem;
+    private Dominio.Catalogo catalogoMock;
+    private NotificationComponent notificationComponent;
+
+
+    protected override void OnInitialized()
+    {
+        currentItem = ItemRepository.GetById(Id);
+    }
+
+    private void SaveChanges()
+    {
+        try
+        {
+            ItemRepository.Update(currentItem);
+            NavigationManager.NavigateTo("/Item");
+        }
+        catch (InvalidItemException ex)
+        {
+            notificationComponent.ShowError($"Error de validación: {ex.Message}");
+        }
+        catch (ItemNotFoundException ex)
+        {
+            notificationComponent.ShowError($"Error de validación: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            notificationComponent.ShowError($"Error al editar el item: {ex.Message}");
+        }
+    }
+
+}

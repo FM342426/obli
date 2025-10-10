@@ -1,0 +1,90 @@
+﻿@page "/"
+@page "/login"
+
+@rendermode InteractiveServer
+
+
+@layout MainLayoutLogin
+ 
+@using Dominio
+@using Dominio.Entidades
+@using Microsoft.AspNetCore.Components.Authorization
+@using NearDupFinder.Aplicacion
+@using NearDupFinder.Web.Auth
+@using NearDupFinder.Web.Components.Layout
+@inject LoginService LoginService
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IHttpContextAccessor HttpContextAccessor
+
+
+ 
+
+<div class="login-container">
+    <div class="login-card">
+        <h3 class="text-center mb-4">Iniciar Sesión</h3>
+
+        <EditForm Model="@loginModel" OnValidSubmit="OnLogin" FormName="LoginForm">
+            <DataAnnotationsValidator />
+            
+
+            <div class="mb-3">
+                <label>Email</label>
+                <InputText @bind-Value="loginModel.Email" class="form-control" />
+                <ValidationMessage For="@(() => loginModel.Email)" />
+            </div>
+
+            <div class="mb-3">
+                <label>Contraseña</label>
+                <InputText @bind-Value="loginModel.Password" type="password" class="form-control" />
+                <ValidationMessage For="@(() => loginModel.Password)" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(MensajeError))
+            {
+                <div class="alert alert-danger">@MensajeError</div>
+            }
+
+            <button type="submit" class="btn btn-primary w-100">Ingresar</button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+
+    private LoginModel loginModel = new LoginModel()
+    {
+        Email = "admin@gmail.com",
+        Password = "1234"
+    };
+    
+    private string? MensajeError;
+
+    private async Task OnLogin()
+    {
+        var usuario  = await LoginService.Autenticar(loginModel.Email, loginModel.Password);
+
+        if (usuario  is not null)
+        {
+            var customAuthStateProvider = (CustomAuthenticationStateProvider)AuthStateProvider;
+            await customAuthStateProvider.UpdateAuthenticationState(new UserSession
+            {
+                UserName = usuario.Nombre,  
+                Roles = usuario.Roles ,
+                Email = usuario.Email 
+            });
+            
+            //sacar despues , es para prueba
+            var authState = await customAuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            
+            StateHasChanged(); 
+            await Task.Delay(100); 
+            Nav.NavigateTo("/home");
+        }
+        else
+        {
+            MensajeError = "Email o contraseña incorrectos.";
+        }
+    }
+}

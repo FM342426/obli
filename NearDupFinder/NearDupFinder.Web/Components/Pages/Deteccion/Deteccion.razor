@@ -1,0 +1,441 @@
+﻿@page "/Deteccion"
+@using NearDupFinder.Dominio.Interfaces
+@using NearDupFinder.Dominio.Entidades
+@using NearDupFinder.Dominio.Repositorios
+@using NearDupFinder.Dominio.Servicios
+@inject IDeteccionRepositorio DeteccionRepositorio
+@inject IItemRepositorio ItemRepositorio
+@rendermode InteractiveServer
+
+<PageTitle>Detección de Duplicados</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>
+                <span class="oi oi-warning me-2"></span>
+                Detección de Duplicados
+            </h2>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="row">
+                <div class="col">
+                    <h5 class="mb-0">Pares Detectados</h5>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Ítem A</th>
+                            <th>Ítem B</th>
+                            <th>Score</th>
+                            <th>Estado</th>
+                            <th>Detalle</th>
+                            <th width="200">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var deteccion in deteccionesFiltradas)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <span class="oi oi-box me-2 text-muted"></span>
+                                        <div>
+                                            <div class="fw-semibold">@GetItemTitulo(deteccion.ItemAId)</div>
+                                            <small class="text-muted">ID: @deteccion.ItemAId</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <span class="oi oi-box me-2 text-muted"></span>
+                                        <div>
+                                            <div class="fw-semibold">@GetItemTitulo(deteccion.ItemBId)</div>
+                                            <small class="text-muted">ID: @deteccion.ItemBId</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge @GetScoreBadgeClass(deteccion.Score)">
+                                        @deteccion.Score.ToString("F3")
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge @GetEstadoBadgeClass(deteccion.Estado)">
+                                        @deteccion.Estado
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-info" 
+                                            @onclick="(() => MostrarDetalle(deteccion))"
+                                            title="Ver detalle">
+                                        <span class="oi oi-eye"></span>
+                                    </button>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        @if (deteccion.Estado == "Pendiente")
+                                        {
+                                            <button class="btn btn-outline-success" 
+                                                    @onclick="(() => ConfirmarDuplicado(deteccion.Id))"
+                                                    title="Confirmar Duplicado">
+                                                <span class="oi oi-check"></span>
+                                            </button>
+                                            <button class="btn btn-outline-warning" 
+                                                    @onclick="(() => DescartarDuplicado(deteccion.Id))"
+                                                    title="No es Duplicado">
+                                                <span class="oi oi-x"></span>
+                                            </button>
+                                        }
+                                        <button class="btn btn-outline-primary" 
+                                                @onclick="(() => CompararItemsUI(deteccion))"
+                                                title="Comparar">
+                                            <span class="oi oi-collapse-down"></span>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        @if (!deteccionesFiltradas.Any())
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    <span class="oi oi-info me-2"></span>
+                                    No hay detecciones para mostrar
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@if (mostrarModalDetalle && deteccionSeleccionada != null)
+{
+    <div class="modal fade show" style="display: block; background-color: rgba(0,0,0,0.5);" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Detalle de Similitud</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Ítem A: @GetItemTitulo(deteccionSeleccionada.ItemAId)</h6>
+                            <p class="text-muted">ID: @deteccionSeleccionada.ItemAId</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Ítem B: @GetItemTitulo(deteccionSeleccionada.ItemBId)</h6>
+                            <p class="text-muted">ID: @deteccionSeleccionada.ItemBId</p>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <h6>Score: @deteccionSeleccionada.Score.ToString("F3")</h6>
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Componente</th>
+                                    <th>Valor</th>
+                                    <th>Contribución</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Título (Jaccard)</td>
+                                    <td>@deteccionSeleccionada.JaccardTitulo.ToString("F3")</td>
+                                    <td>@((deteccionSeleccionada.JaccardTitulo * 0.45).ToString("F3"))</td>
+                                </tr>
+                                <tr>
+                                    <td>Descripción (Jaccard)</td>
+                                    <td>@deteccionSeleccionada.JaccardDescripcion.ToString("F3")</td>
+                                    <td>@((deteccionSeleccionada.JaccardDescripcion * 0.35).ToString("F3"))</td>
+                                </tr>
+                                <tr>
+                                    <td>Marca</td>
+                                    <td>@deteccionSeleccionada.MarcaEq</td>
+                                    <td>@((deteccionSeleccionada.MarcaEq * 0.10).ToString("F3"))</td>
+                                </tr>
+                                <tr>
+                                    <td>Modelo</td>
+                                    <td>@deteccionSeleccionada.ModeloEq</td>
+                                    <td>@((deteccionSeleccionada.ModeloEq * 0.10).ToString("F3"))</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    @if (deteccionSeleccionada.TokensCompartidosTitulo?.Any() == true)
+                    {
+                        <div class="mt-3">
+                            <h6>Tokens Compartidos en Título:</h6>
+                            <div class="d-flex flex-wrap gap-1">
+                                @foreach (var token in deteccionSeleccionada.TokensCompartidosTitulo)
+                                {
+                                    <span class="badge bg-primary">@token</span>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    @if (deteccionSeleccionada.TokensCompartidosDescripcion?.Any() == true)
+                    {
+                        <div class="mt-3">
+                            <h6>Tokens Compartidos en Descripción:</h6>
+                            <div class="d-flex flex-wrap gap-1">
+                                @foreach (var token in deteccionSeleccionada.TokensCompartidosDescripcion)
+                                {
+                                    <span class="badge bg-success">@token</span>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <div class="mt-3">
+                        <h6>Umbrales:</h6>
+                        <ul class="list-unstyled">
+                            <li>
+                                <span class="badge bg-warning">≥ 0.60</span> Posible Duplicado
+                            </li>
+                            <li>
+                                <span class="badge bg-danger">≥ 0.75</span> Duplicado Sugerido
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CerrarModal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+@if (mostrarModalComparar && deteccionComparar != null)
+{
+    <div class="modal fade show" style="display:block; background-color:rgba(0,0,0,0.5);" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <span class="oi oi-collapse-down me-2"></span>
+                        Comparación Lado a Lado
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CerrarModalComparar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 border-end">
+                            <h6>Ítem A ID: @deteccionComparar.ItemAId</h6>
+                            <div class="mt-3">
+                                <strong>Título:</strong>
+                                <div class="border rounded p-3 bg-light mt-1">
+                                    @((MarkupString)ResaltarTokens(itemAComparar?.Titulo ?? "", deteccionComparar.TokensCompartidosTitulo ?? new List<string>()))
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <strong>Descripción:</strong>
+                                <div class="border rounded p-3 bg-light mt-1" style="max-height: 200px; overflow-y: auto;">
+                                    @((MarkupString)ResaltarTokens(itemAComparar?.Descripcion ?? "", deteccionComparar.TokensCompartidosDescripcion ?? new List<string>()))
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6>Ítem B  ID: @deteccionComparar.ItemBId</h6>
+                            <div class="mt-3">
+                                <strong>Título:</strong>
+                                <div class="border rounded p-3 bg-light mt-1">
+                                    @((MarkupString)ResaltarTokens(itemBComparar?.Titulo ?? "", deteccionComparar.TokensCompartidosTitulo ?? new List<string>()))
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <strong>Descripción:</strong>
+                                <div class="border rounded p-3 bg-light mt-1" style="max-height: 200px; overflow-y: auto;">
+                                    @((MarkupString)ResaltarTokens(itemBComparar?.Descripcion ?? "", deteccionComparar.TokensCompartidosDescripcion ?? new List<string>()))
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card border-warning">
+                                <div class="card-header bg-warning">
+                                    <h6 class="mb-0">Tokens Compartidos Resaltados</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <strong class="text-primary">Título:</strong>
+                                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                                @foreach (var token in deteccionComparar.TokensCompartidosTitulo ?? new List<string>())
+                                                {
+                                                    <span class="badge bg-primary">@token</span>
+                                                }
+                                                @if (deteccionComparar.TokensCompartidosTitulo?.Any() != true)
+                                                {
+                                                    <span class="text-muted">No hay tokens compartidos</span>
+                                                }
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <strong class="text-success">Descripción:</strong>
+                                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                                @foreach (var token in deteccionComparar.TokensCompartidosDescripcion ?? new List<string>())
+                                                {
+                                                    <span class="badge bg-success">@token</span>
+                                                }
+                                                @if (deteccionComparar.TokensCompartidosDescripcion?.Any() != true)
+                                                {
+                                                    <span class="text-muted">No hay tokens compartidos</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CerrarModalComparar">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<NearDupFinder.Dominio.Entidades.Deteccion> detecciones = new();
+    private List<NearDupFinder.Dominio.Entidades.Deteccion> deteccionesFiltradas = new();
+    private string filtroEstado = "";
+    private bool mostrarModalDetalle = false;
+    private NearDupFinder.Dominio.Entidades.Deteccion? deteccionSeleccionada = null;
+    private Dictionary<int, string> titulosItems = new();
+    private bool mostrarModalComparar = false;
+    private NearDupFinder.Dominio.Entidades.Deteccion? deteccionComparar = null;
+    private Dominio.Item? itemAComparar = null;
+    private Dominio.Item? itemBComparar = null;
+
+
+    protected override void OnInitialized()
+    {
+        CargarDetecciones();
+    }
+
+    private void CargarDetecciones()
+    {
+        detecciones = DeteccionRepositorio.ObtenerDeteccionesPendientes();
+        deteccionesFiltradas = detecciones;
+
+    }
+    
+
+
+    private void MostrarDetalle(NearDupFinder.Dominio.Entidades.Deteccion deteccion)
+    {
+        deteccionSeleccionada = deteccion;
+        mostrarModalDetalle = true;
+    }
+
+    private void CerrarModal()
+    {
+        mostrarModalDetalle = false;
+        deteccionSeleccionada = null;
+    }
+
+    private void ConfirmarDuplicado(int deteccionId)
+    {
+        DeteccionRepositorio.ConfirmarDeteccion(deteccionId);
+        CargarDetecciones();
+    }
+
+    private void DescartarDuplicado(int deteccionId)
+    {
+        DeteccionRepositorio.DescartarDeteccion(deteccionId);
+        CargarDetecciones();
+    }
+
+    private string GetItemTitulo(int itemId)
+    {
+        if (!titulosItems.ContainsKey(itemId))
+        {
+            var item = ItemRepositorio.GetById(itemId);
+            titulosItems[itemId] = item?.Titulo ?? "Item no encontrado";
+        }
+        return titulosItems[itemId];
+    }
+
+    private string GetScoreBadgeClass(double score)
+    {
+        return score switch
+        {
+            >= 0.75 => "bg-danger",
+            >= 0.60 => "bg-warning",
+            _ => "bg-primary"
+        };
+    }
+
+    private string GetEstadoBadgeClass(string estado)
+    {
+        return estado switch
+        {
+            "Confirmado" => "bg-primary",
+            "Descartado" => "bg-secondary",
+            "Pendiente" => "bg-warning",
+            _ => "bg-secondary"
+        };
+    }
+    private string ResaltarTokens(string texto, List<string> tokens)
+    {
+        if (string.IsNullOrEmpty(texto) || tokens == null || !tokens.Any())
+            return System.Net.WebUtility.HtmlEncode(texto);
+
+        var textoCodificado = System.Net.WebUtility.HtmlEncode(texto);
+    
+        var tokensOrdenados = tokens
+            .Where(t => !string.IsNullOrEmpty(t))
+            .OrderByDescending(t => t.Length)
+            .ToList();
+
+        foreach (var token in tokensOrdenados)
+        {
+            var tokenCodificado = System.Net.WebUtility.HtmlEncode(token);
+            textoCodificado = textoCodificado.Replace(
+                tokenCodificado, 
+                $"<mark class='bg-warning px-1 rounded'>{tokenCodificado}</mark>",
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        return textoCodificado;
+    }
+
+    private void CompararItemsUI(NearDupFinder.Dominio.Entidades.Deteccion deteccion)
+    {
+        deteccionComparar = deteccion;
+        itemAComparar = ItemRepositorio.GetById(deteccion.ItemAId);
+        itemBComparar = ItemRepositorio.GetById(deteccion.ItemBId);
+        mostrarModalComparar = true;
+    }
+
+    private void CerrarModalComparar()
+    {
+        mostrarModalComparar = false;
+        deteccionComparar = null;
+        itemAComparar = null;
+        itemBComparar = null;
+    }
+}

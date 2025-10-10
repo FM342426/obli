@@ -1,0 +1,200 @@
+﻿@page "/Item"
+@using NearDupFinder.Dominio.Repositorios
+
+@rendermode InteractiveServer
+
+@using NearDupFinder.Dominio.Interfaces
+
+@inject IItemRepositorio ItemRepositorio
+@inject IServicioEstadosDuplicacion ServicioEstadosDuplicacion
+
+
+<PageTitle>Gestión de Items</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>
+                <span class="oi oi-box me-2"></span>
+                Gestión de Items
+            </h2>
+        </div>
+        <div class="col-auto">
+            <a class="btn btn-primary" href="/items/create">
+                <span class="oi oi-plus me-1"></span>
+                Crear
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="row">
+                <div class="col">
+                    <h5 class="mb-0">Lista de Items</h5>
+                </div>
+                <div class="col-auto">
+                    <div class="d-flex gap-2">
+                        <div class="input-group input-group-sm" style="width: 160px;">
+                            <span class="input-group-text">
+                                <span class="oi oi-cog"></span>
+                            </span>
+                            <select class="form-select" id="categoria"
+                                    @bind="FiltroCategoria" @bind:event="onchange">
+                                <option value="">Categoría</option>
+                                @foreach (var cat in categoriasDisponibles)
+                                {
+                                    <option value="@cat">@cat</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="input-group input-group-sm" style="width: 200px;">
+                            <span class="input-group-text">
+                                <span class="oi oi-magnifying-glass"></span>
+                            </span>
+                            <input type="text" class="form-control" placeholder="Buscar..."
+                                   @bind="FiltroTexto" @bind:event="oninput" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Producto (Título)</th>
+                        <th>Descripcion</th>
+                        <th>Marca</th>
+                        <th>Modelo</th>
+                        <th>Categoria</th>
+                        <th>Catalogo</th>
+                        <th>Estado de duplicación</th>
+                        <th width="120">Acciones</th>    
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var item in itemsFiltrados) 
+                    {
+                        <tr class="">
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="oi oi-box me-2 text-muted"></span>
+                                    <div>
+                                        <div class="fw-semibold">@item.Titulo</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>@item.Descripcion</td>
+                            <td>@item.Marca</td>
+                            <td>@item.Modelo</td>
+                            <td>@item.Categoria</td>
+                            <td>@item.Catalogo?.Titulo</td>
+                            <td>  <span class="badge @GetBadgeClass(ObtenerEstadoItem(item))">
+                                @ObtenerEstadoItem(item)
+                            </span></td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a class="btn btn-outline-primary" href="/items/@item.Id/edit" title="Editar">
+                                        <span class="oi oi-pencil"></span>
+                                    </a>
+                                    <button class="btn btn-outline-danger" title="Eliminar" @onclick="(() => DeleteItem(item.Id))">
+                                        <span class="oi oi-trash"></span>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Dominio.Item> items = new List<Dominio.Item>();
+    private List<Dominio.Item> itemsFiltrados = new();
+    private List<string> categoriasDisponibles = new();
+    private string filtroTexto = "";
+    private string filtroCategoria = "";
+
+
+    
+    protected override void OnInitialized()
+    {
+        items = ItemRepositorio.GetAll().ToList();
+        itemsFiltrados = items;
+        
+        categoriasDisponibles = items.Where(i => !string.IsNullOrEmpty(i.Categoria)).Select(i => i.Categoria!).Distinct().OrderBy(c => c).ToList();
+    }
+    
+    private string FiltroTexto
+    {
+        get => filtroTexto;
+        set
+        {
+            if (filtroTexto != value)
+            {
+                filtroTexto = value;
+                AplicarFiltros();
+            }
+        }
+    }
+    
+    private string FiltroCategoria
+    {
+        get => filtroCategoria;
+        set
+        {
+            if (filtroCategoria != value)
+            {
+                filtroCategoria = value;
+                AplicarFiltros();
+            }
+        }
+    }
+
+    private bool CoincideConFiltroTexto(Dominio.Item item)
+    {
+        return string.IsNullOrEmpty(filtroTexto) || (item.Titulo != null && item.Titulo.Contains(filtroTexto, StringComparison.OrdinalIgnoreCase)) ||
+               (item.Descripcion != null && item.Descripcion.Contains(filtroTexto, StringComparison.OrdinalIgnoreCase));
+    }
+    
+    private bool CoincideConFiltroCategoria(Dominio.Item item)
+    {
+        return string.IsNullOrEmpty(filtroCategoria) || item.Categoria == filtroCategoria;
+    }
+    
+    private void AplicarFiltros()
+    {
+        itemsFiltrados = items.Where(item => CoincideConFiltroTexto(item)  && CoincideConFiltroCategoria(item))
+            .ToList();
+    }
+
+   
+    private void DeleteItem(int id)
+    {
+            ItemRepositorio.Delete(id);
+            items = ItemRepositorio.GetAll().ToList();
+            AplicarFiltros();
+    }
+    private string GetBadgeClass(string estado)
+    {
+        return estado switch
+        {
+            "En clúster" => "bg-danger",
+            "Con candidatos" => "bg-warning", 
+            "Sin candidatos" => "bg-primary",
+            _ => "bg-secondary"
+        };
+    }
+    private string ObtenerEstadoItem(Dominio.Item item)
+    {
+        return ServicioEstadosDuplicacion.ObtenerEstadoItem(item);
+    }
+}
+
+

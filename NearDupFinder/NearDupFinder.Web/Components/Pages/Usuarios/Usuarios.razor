@@ -1,0 +1,493 @@
+﻿@page "/usuarios"
+@attribute [Authorize]
+
+@using global::Dominio.Dtos
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using NearDupFinder.Dominio.Entidades
+@using NearDupFinder.Dominio.Interfaces
+@using NearDupFinder.Dominio.Utiles
+@inject IUsuarioService UsuarioService
+@inject AuthenticationStateProvider AuthStateProvider
+
+@inject NavigationManager Nav 
+ 
+@inject IJSRuntime JS
+
+<PageTitle>Gestión de Usuarios</PageTitle>
+
+ 
+
+
+
+<AuthorizeView  Roles="@RolesConstantes.ADMINISTRADOR" Context="authContext">
+    <Authorized>
+         
+        <div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>
+                <span class="oi oi-people me-2"></span>
+                Gestión de Usuarios
+            </h2>
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-primary" @onclick="NuevoUsuario">
+                <span class="oi oi-plus me-1"></span>
+                Nuevo Usuario
+            </button>
+        </div>
+    </div>
+
+    @if (mostrarFormulario)
+    {
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    @(usuarioEditando.Id == 0 ? "Crear Usuario" : $"Editar Usuario - {usuarioEditando.Nombre} {usuarioEditando.Apellido}")
+                </h5>
+            </div>
+            <div class="card-body">
+                <EditForm Model="usuarioEditando" OnValidSubmit="GuardarUsuario">
+                    <DataAnnotationsValidator />
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Nombre</label>
+                                <InputText @bind-Value="usuarioEditando.Nombre" class="form-control" />
+                                <ValidationMessage For="() => usuarioEditando.Nombre" />
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Apellido</label>
+                                <InputText @bind-Value="usuarioEditando.Apellido" class="form-control" />
+                                <ValidationMessage For="() => usuarioEditando.Apellido" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Email</label>
+                                <InputText @bind-Value="usuarioEditando.Email" class="form-control" type="email" />
+                                <ValidationMessage For="() => usuarioEditando.Email" />
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Fecha de Nacimiento</label>
+                                <InputDate @bind-Value="usuarioEditando.FechaNacimiento" class="form-control" />
+                                <ValidationMessage For="() => usuarioEditando.FechaNacimiento" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Contraseña @(usuarioEditando.Id == 0 ? "" : "(dejar vacío para no cambiar)")</label>
+                                <InputText @bind-Value="usuarioEditando.Password" class="form-control" type="password" />
+                                <ValidationMessage For="() => usuarioEditando.Password" />
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Confirmar Contraseña</label>
+                                <InputText @bind-Value="usuarioEditando.ConfirmarPassword" class="form-control" type="password" />
+                                <ValidationMessage For="() => usuarioEditando.ConfirmarPassword" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Roles</label>
+                        <div class="form-check-container">
+                            @foreach (var rol in RolesConstantes.TodosLosRoles)
+                            {
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox"
+                                           id="rol_@(rol.Replace(" ", "_"))"
+                                           checked="@usuarioEditando.RolesSeleccionados.Contains(rol)"
+                                           @onchange="@((args) => CambiarRol(rol, (bool)args.Value!))" />
+                                    <label class="form-check-label" for="rol_@(rol.Replace(" ", "_"))">
+                                        @rol
+                                    </label>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary" disabled="@guardando">
+                            @if (guardando)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            <span class="oi oi-check me-1"></span>
+                            Guardar
+                        </button> 
+                        <button type="button" class="btn btn-secondary" @onclick="CancelarEdicion">
+                            <span class="oi oi-x me-1"></span>
+                            Cancelar
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    @if (mensajeError != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @mensajeError
+            <button type="button" class="btn-close" @onclick="() => mensajeError = null"></button>
+        </div>
+    }
+
+    @if (mensajeExito != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @mensajeExito
+            <button type="button" class="btn-close" @onclick="() => mensajeExito = null"></button>
+        </div>
+    }
+
+    <div class="card">
+        <div class="card-header">
+            <div class="row">
+                <div class="col">
+                    <h5 class="mb-0">Lista de Usuarios</h5>
+                </div>
+                <div class="col-auto">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text">
+                            <span class="oi oi-magnifying-glass"></span>
+                        </span>
+                        <input type="text" class="form-control" placeholder="Buscar..." @bind="filtro" @oninput="FiltrarUsuarios" />
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Email</th>
+                           
+                        <th>Roles</th>
+                          
+                          
+                        <th width="120">Acciones</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @if (usuariosFiltrados?.Any() == true)
+                    {
+                        @foreach (var usuario in usuariosFiltrados)
+                        {
+                            <tr class="">
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <span class="oi oi-person me-2 text-muted"></span>
+                                        <div>
+                                            <div class="fw-semibold">@usuario.Nombre</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>@usuario.Email</td>
+                                    
+                                <td>
+                                    @if (usuario.Roles.Any())
+                                    {
+                                        @foreach (var rol in usuario.Roles)
+                                        {
+                                            <span class="badge bg-primary me-1">@rol</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Sin roles</span>
+                                    }
+                                </td>
+                                 
+                                   
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary" @onclick="() => EditarUsuario(usuario)" title="Editar">
+                                            <span class="oi oi-pencil"></span>
+                                        </button>
+                                        <button class="btn btn-outline-danger" @onclick="() => ConfirmarEliminar(usuario)" title="Eliminar">
+                                            <span class="oi oi-trash"></span>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center py-4 text-muted">
+                                @if (cargando)
+                                {
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Cargando...</span>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span>No se encontraron usuarios</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+   
+</div>
+ 
+    </Authorized>
+    <NotAuthorized>
+        <p>No estás autorizado</p>
+    </NotAuthorized>
+    <Authorizing>
+        <p>Cargando...</p>
+    </Authorizing>
+</AuthorizeView>
+
+@code {
+    
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; }
+    
+    private List<Usuario>? usuarios;
+    private List<Usuario>? usuariosFiltrados;
+    private UsuarioDTO usuarioEditando = new();
+    private bool mostrarFormulario = false;
+    private bool cargando = true;
+    private bool guardando = false;
+    private string? mensajeError;
+    private string? mensajeExito;
+    private string filtro = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarUsuarios();
+    }
+
+    private async Task CargarUsuarios()
+    {
+        try
+        {
+            cargando = true;
+            var usuariosEnum = await UsuarioService.ObtenerTodos();
+            usuarios = usuariosEnum.ToList();
+            usuariosFiltrados = usuarios;
+        }
+        catch (Exception ex)
+        {
+            mensajeError = $"Error al cargar usuarios: {ex.Message}";
+        }
+        finally
+        {
+            cargando = false;
+            StateHasChanged();
+        }
+    }
+
+    private void NuevoUsuario()
+    {
+        usuarioEditando = new UsuarioDTO();
+        mostrarFormulario = true;
+        LimpiarMensajes();
+    }
+
+    private void EditarUsuario(Usuario usuario)
+    {
+        usuarioEditando = new UsuarioDTO
+            {
+                Id = usuario.Id,
+                Nombre = usuario.Nombre,              
+                Email = usuario.Email,
+                Apellido = usuario.Apellido,
+                FechaNacimiento = usuario.FechaNacimiento,
+                RolesSeleccionados = new List<string>(usuario.Roles),               
+                Password = "", 
+                ConfirmarPassword = ""
+            };
+        mostrarFormulario = true;
+        LimpiarMensajes();
+    }
+
+  private async Task GuardarUsuario()
+{
+    try
+    {
+        guardando = true;
+        LimpiarMensajes();
+
+        if (string.IsNullOrWhiteSpace(usuarioEditando.Nombre) ||
+            string.IsNullOrWhiteSpace(usuarioEditando.Apellido) ||
+            string.IsNullOrWhiteSpace(usuarioEditando.Email))
+        {
+            mensajeError = "Nombre, apellido y email son obligatorios.";
+            return;
+        }
+
+        if (usuarioEditando.Id == 0 && string.IsNullOrWhiteSpace(usuarioEditando.Password))
+        {
+            mensajeError = "La contraseña es obligatoria para usuarios nuevos.";
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(usuarioEditando.Password) &&
+            usuarioEditando.Password != usuarioEditando.ConfirmarPassword)
+        {
+            mensajeError = "Las contraseñas no coinciden.";
+            return;
+        }
+
+        if (usuarioEditando.FechaNacimiento > DateTime.Today)
+        {
+            mensajeError = "La fecha de nacimiento no puede ser posterior al día de hoy.";
+            return;
+        }
+
+        
+        var usuario = new Usuario
+        {
+            Id = usuarioEditando.Id,
+            Nombre = usuarioEditando.Nombre.Trim(),
+            Email = usuarioEditando.Email.Trim().ToLower(),
+            Apellido = usuarioEditando.Apellido.Trim(),
+            FechaNacimiento = usuarioEditando.FechaNacimiento,
+            Roles = usuarioEditando.RolesSeleccionados,
+            Password = usuarioEditando.Password
+        };
+
+        if (usuario.Id == 0)
+        {
+            // Usuario nuevo simpre se ´pide  contraseña
+            usuario.PasswordHash = PasswordHasher.Hash(usuarioEditando.Password);
+
+            await UsuarioService.CrearUsuario(usuario);
+            mensajeExito = "Usuario creado correctamente.";
+        }
+        else
+        {
+            // Usuario existente 
+            var usuarioExistente = await UsuarioService.ObtenerPorId(usuario.Id);
+
+            //solo si se ingreso contraseña le creo un hash nuevo
+            if (!string.IsNullOrWhiteSpace(usuarioEditando.Password))
+            {
+                usuario.PasswordHash = PasswordHasher.Hash(usuarioEditando.Password);
+            }
+            else
+            {
+                // si no lo ingreso dejo como esta
+                usuario.PasswordHash = usuarioExistente.PasswordHash;
+            }
+
+            await UsuarioService.ActualizarUsuario(usuario);
+            mensajeExito = "Usuario actualizado correctamente.";
+        }
+
+        CancelarEdicion();
+        await CargarUsuarios();
+    }
+    catch (Exception ex)
+    {
+        mensajeError = ex.Message;
+    }
+    finally
+    {
+        guardando = false;
+        StateHasChanged();
+    }
+}
+
+    private void CancelarEdicion()
+    {
+        mostrarFormulario = false;
+        usuarioEditando = new();
+        LimpiarMensajes();
+    }
+
+    private void CambiarRol(string rol, bool seleccionado)
+    {
+        if (seleccionado && !usuarioEditando.RolesSeleccionados.Contains(rol))
+        {
+            usuarioEditando.RolesSeleccionados.Add(rol);
+        }
+        else if (!seleccionado && usuarioEditando.RolesSeleccionados.Contains(rol))
+        {
+            usuarioEditando.RolesSeleccionados.Remove(rol);
+        }
+    }
+
+    private void FiltrarUsuarios(ChangeEventArgs e)
+    {
+        filtro = e.Value?.ToString() ?? "";
+
+        if (usuarios == null) return;
+
+        if (string.IsNullOrWhiteSpace(filtro))
+        {
+            usuariosFiltrados = usuarios;
+        }
+        else
+        {
+            var filtroLower = filtro.ToLower();
+            usuariosFiltrados = usuarios.Where(u =>             
+                u.Email.ToLower().Contains(filtroLower) ||
+                u.Roles.Any(r => r.ToLower().Contains(filtroLower))
+            ).ToList();
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ConfirmarEliminar(Usuario usuario)
+    {
+        var confirmado = await JS.InvokeAsync<bool>("confirm",
+            $"¿Está seguro de eliminar al usuario {usuario.Nombre} {usuario.Apellido}?");
+
+        if (confirmado)
+        {
+            try
+            {
+                var eliminado = await UsuarioService.EliminarUsuario(usuario.Id);
+                if (eliminado)
+                {
+                    mensajeExito = $"Usuario {usuario.Nombre} {usuario.Apellido} eliminado correctamente.";
+                    await CargarUsuarios();
+                }
+                else
+                {
+                    mensajeError = "No se pudo eliminar el usuario.";
+                }
+            }
+            catch (Exception ex)
+            {
+                mensajeError = $"Error al eliminar usuario: {ex.Message}";
+            }
+        }
+    }
+
+    private void LimpiarMensajes()
+    {
+        mensajeError = null;
+        mensajeExito = null;
+    }
+}

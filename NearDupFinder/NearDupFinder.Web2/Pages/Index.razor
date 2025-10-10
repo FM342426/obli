@@ -1,0 +1,23 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Nav
+
+<PageTitle>Index</PageTitle>
+
+<h1>Hello, world!</h1>
+
+Welcome to your new app.
+
+<SurveyPrompt Title="How is Blazor working for you?" />
+
+<h3>Home</h3>
+<button @onclick="VerEstado">Ver estado actual</button>
+@code {
+    private async Task VerEstado()
+    {
+        var state = await AuthProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+        Console.WriteLine($"IsAuthenticated: {user.Identity?.IsAuthenticated}");
+    }
+}
