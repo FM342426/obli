@@ -12,13 +12,13 @@ public class LoginTest
     
     private Seguridad _servicioLogin;
     private Mock<IServicioSeguridadHash> _mockServicioSeguridadHash;
-    private Mock<IRepositorioUsuarios> _mockRepositorio;
+    private Mock<IUsuarioRepositorio> _mockRepositorio;
     
     
     [TestInitialize]
     public void Inicializar()  
     { 
-        _mockRepositorio = new Mock<IRepositorioUsuarios>();
+        _mockRepositorio = new Mock<IUsuarioRepositorio>();
         _mockServicioSeguridadHash = new Mock<IServicioSeguridadHash>();
         _servicioLogin = new Seguridad(_mockRepositorio.Object);
     }

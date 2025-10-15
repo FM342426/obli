@@ -1,4 +1,5 @@
 using NearDupFinder.Dominio.Entidades;
+using NearDupFinder.Dominio.Exceptions;
 using NearDupFinder.Dominio.Interfaces;
 using NearDupFinder.Infraestructura.Repositorios;
 
@@ -6,7 +7,7 @@ using NearDupFinder.Infraestructura.Repositorios;
 [TestClass]
 public class UsuariosEnMemoriaRepositorioTest
 {
-    private IRepositorioUsuarios _repositorio;
+    private IUsuarioRepositorio _repositorio;
 
      
     [TestInitialize]
@@ -108,7 +109,7 @@ public class UsuariosEnMemoriaRepositorioTest
         var usuarioInexistente = new Usuario { Id = 99, Email = "noexiste@test.com" };
 
         // Act y Ass
-        await Assert.ThrowsExceptionAsync<InvalidOperationException>(async () => 
+        await Assert.ThrowsExceptionAsync<UsuarioException>(async () => 
         {
             await _repositorio.Actualizar(usuarioInexistente);
         });
